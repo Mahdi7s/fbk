@@ -1,14 +1,14 @@
-name: WIPE REPOSITORY
+name: WIPE REPOSITORY SAFE
 
 on:
-  workflow_dispatch:   # manual trigger only
+  workflow_dispatch:
 
 jobs:
   wipe:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -18,16 +18,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Delete all files
+      - name: Delete all tracked + untracked files
         run: |
-          rm -rf *
-          rm -rf .[^.]* || true   # also remove hidden files (dotfiles), ignore errors
+          find . -mindepth 1 -not -path "./.git/*" -delete
 
-      - name: Commit empty repo
-        run: |
-          git add -A
-          git commit -m "🔥 Wipe repository content" || echo "Nothing to commit"
+      - name: Stage changes
+        run: git add -A
 
-      - name: Force push to main
+      - name: Commit (ignore empty state safely)
         run: |
-          git push origin HEAD:main --force
+          git commit -m "🔥 Wipe repository content" || echo "No changes to commit"
+
+      - name: Push to current branch
+        run: |
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          git push origin HEAD:$BRANCH --force
