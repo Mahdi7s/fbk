@@ -4,25 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "YES_I_WANT_TO_WIPE" to confirm'
+        description: 'Type YES_I_WANT_TO_WIPE to confirm'
         required: true
 
 jobs:
   wipe:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # Explicitly request write permission
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify confirmation
+      - name: Verify Confirmation
         run: |
           if [[ "${{ github.event.inputs.confirm }}" != "YES_I_WANT_TO_WIPE" ]]; then
-            echo "❌ Confirmation failed. Aborting."
+            echo "❌ Wrong confirmation phrase. Aborting."
             exit 1
           fi
-          echo "✅ Wipe confirmed. Proceeding..."
+          echo "✅ Wipe confirmed."
 
       - name: Configure Git
         run: |
@@ -31,15 +35,14 @@ jobs:
 
       - name: Remove all files
         run: |
-          # Remove everything except .git directory
-          shopt -s dotglob
+          shopt -s dotglob nullglob
           rm -rf ./* ./.??* 2>/dev/null || true
 
       - name: Create empty commit
         run: |
           git add -A
-          git commit --allow-empty -m "🔥 Wipe repository - all files removed" || echo "Nothing new to commit"
+          git commit --allow-empty -m "🔥 Repository wiped - all files removed" || true
 
-      - name: Force push
+      - name: Force Push
         run: |
           git push origin HEAD --force
