@@ -1,0 +1,33 @@
+name: WIPE REPOSITORY
+
+on:
+  workflow_dispatch:   # manual trigger only
+
+jobs:
+  wipe:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Delete all files
+        run: |
+          rm -rf *
+          rm -rf .[^.]* || true   # also remove hidden files (dotfiles), ignore errors
+
+      - name: Commit empty repo
+        run: |
+          git add -A
+          git commit -m "🔥 Wipe repository content" || echo "Nothing to commit"
+
+      - name: Force push to main
+        run: |
+          git push origin HEAD:main --force
