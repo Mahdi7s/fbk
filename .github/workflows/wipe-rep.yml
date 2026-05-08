@@ -1,4 +1,4 @@
-name: WIPE REPOSITORY SAFE
+name: WIPE REPOSITORY STABLE
 
 on:
   workflow_dispatch:
@@ -18,18 +18,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Delete all tracked + untracked files
+      - name: Remove all tracked files safely
         run: |
+          git rm -r --cached . || true
           find . -mindepth 1 -not -path "./.git/*" -delete
 
-      - name: Stage changes
-        run: git add -A
-
-      - name: Commit (ignore empty state safely)
+      - name: Create empty commit (safe)
         run: |
-          git commit -m "🔥 Wipe repository content" || echo "No changes to commit"
+          git commit -m "🔥 Wipe repo" || echo "Nothing to commit"
 
-      - name: Push to current branch
+      - name: Push force
         run: |
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          git push origin HEAD:$BRANCH --force
+          git push origin HEAD --force
