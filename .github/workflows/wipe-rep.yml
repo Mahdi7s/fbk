@@ -1,11 +1,11 @@
 ---
-name: 🗑 3-Clean downloads folder
+name: 🧹 Clean entire repository (except .github)
 
 on:
   workflow_dispatch:
     inputs:
       warning:
-        description: '⚠️ WARNING: This will DELETE ALL files inside downloads/ folder. Click "Run workflow" only if you are sure.'
+        description: '⚠️ WARNING: This will DELETE ALL FILES (except .github/). Click "Run workflow" only if you are sure.'
         required: false
         default: 'Read this warning before proceeding'
 
@@ -28,106 +28,85 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-      - name: Remove downloads folder from Git and recreate with README
+      - name: Remove all files from Git and recreate with README
         run: |
           BRANCH="${GITHUB_REF_NAME}"
 
-          echo "AVASAM (https://avasam.ir) - Cleaning downloads folder"
+          echo "AVASAM (https://avasam.ir) - Cleaning entire repository (except .github)"
           echo ""
 
-          # Check if downloads folder exists in git
-          if [ -d "downloads" ]; then
-            echo "Removing downloads folder from Git tracking..."
-
-            # Use git rm to properly remove tracked files
-            # This stages the deletion for commit
-            git rm -rf downloads/ 2>/dev/null || true
-
-            # Also remove any untracked files
-            rm -rf downloads 2>/dev/null || true
-
-            echo "Downloads folder removed from Git"
+          # ---- 1. Remove all tracked files except those under .github ----
+          # Get list of tracked files, exclude .github folder and the workflow file itself (if needed)
+          TRACKED_FILES=$(git ls-files | grep -v '^\.github/' || true)
+          if [ -n "$TRACKED_FILES" ]; then
+            echo "Removing tracked files:"
+            echo "$TRACKED_FILES"
+            echo "$TRACKED_FILES" | xargs git rm --cached --ignore-unmatch 2>/dev/null || true
           else
-            echo "Downloads folder doesn't exist, creating new one..."
+            echo "No tracked files outside .github found."
           fi
 
-          # Create fresh downloads folder
-          mkdir -p downloads
+          # ---- 2. Remove all untracked files/folders except .git and .github ----
+          # Use find to delete everything in the root except .git, .github, and the current script's location
+          echo "Removing untracked files and folders (keeping .github)..."
+          find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name '.github' -exec rm -rf {} + 2>/dev/null || true
 
-          # IMPORTANT: Git doesn't track empty folders!
-          # We MUST add a file inside for Git to track the folder
+          # Also clean any remaining files inside .github/workflows? No, we keep them.
+          # But we must ensure we don't delete the workflow file itself – it's safe because we kept .github/
+
+          # ---- 3. Create a fresh README.md in the root ----
           {
-            echo "# Downloads"
+            echo "# Repository Cleaned"
+            echo ""
+            echo "All files have been removed from this repository (except the \`.github\` folder)."
             echo ""
             echo "---"
             echo ""
-            echo "## NO FILE DOWNLOADED YET!"
-            echo ""
-            echo "Use the download workflows to add files here."
-            echo ""
-            echo "---"
-            echo ""
-            echo "*This tool created by [avasam.ir](https://avasam.ir)*"
-          } > downloads/README.md
+            echo "*Cleaned by [AVASAM workflow](https://avasam.ir)*"
+          } > README.md
 
-          echo "Created downloads/README.md"
-
-          # Stage the new README file
-          git add downloads/README.md
+          # Stage the deletion and the new README
+          git add -A
+          git add README.md
 
           # Check if there are changes to commit
           if git diff --staged --quiet; then
             echo ""
-            echo "No changes detected - downloads folder is already clean"
+            echo "No changes detected – repository is already clean."
             exit 0
           fi
 
           # Commit the changes
-          git commit -m "[AVASAM] Clean downloads folder [skip ci]"
+          git commit -m "[AVASAM] Clean entire repository (except .github) [skip ci]"
 
           echo ""
           echo "Pushing changes..."
 
-          # Push with retries
+          # Push with retries (same robust logic as original)
           RETRY=0
           MAX_RETRIES=5
           while [ $RETRY -lt $MAX_RETRIES ]; do
             RETRY=$((RETRY + 1))
 
-            # Fetch and rebase to avoid conflicts
             git fetch origin "$BRANCH" --quiet 2>/dev/null || true
             git rebase origin/"$BRANCH" 2>/dev/null || {
-              # If rebase fails, reset and try again
               git rebase --abort 2>/dev/null || true
               git reset --hard HEAD~1 2>/dev/null || true
               git pull --rebase origin "$BRANCH" 2>/dev/null || true
 
-              # Recreate our changes
-              mkdir -p downloads
-              git rm -rf downloads/ 2>/dev/null || true
-              rm -rf downloads 2>/dev/null || true
-              mkdir -p downloads
-              {
-                echo "# Downloads"
-                echo ""
-                echo "---"
-                echo ""
-                echo "## NO FILE DOWNLOADED YET!"
-                echo ""
-                echo "Use the download workflows to add files here."
-                echo ""
-                echo "---"
-                echo ""
-                echo "*This tool created by [avasam.ir](https://avasam.ir)*"
-              } > downloads/README.md
-              git add -A downloads/
-              git commit -m "[AVASAM] Clean downloads folder [skip ci]" 2>/dev/null || true
+              # Recreate our changes if rebase fails
+              find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name '.github' -exec rm -rf {} + 2>/dev/null || true
+              echo "# Repository Cleaned" > README.md
+              echo "" >> README.md
+              echo "All files have been removed from this repository (except the \`.github\` folder)." >> README.md
+              git add -A
+              git commit -m "[AVASAM] Clean entire repository (except .github) [skip ci]" 2>/dev/null || true
             }
 
             if timeout 60 git push origin HEAD:"$BRANCH" 2>&1; then
               echo ""
               echo "=========================================="
-              echo "✅ Downloads folder cleared successfully!"
+              echo "✅ Repository cleared successfully!"
               echo "AVASAM (https://avasam.ir)"
               echo "=========================================="
               exit 0
